@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Read-only live observatory for HACO molecular-design campaigns."
+    />
+    <title>HACO Molecular Observatory</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23080b0b' stroke='%23b8ef5b' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%2369d7d0'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="site-config.js"></script>
+    <script src="site-data.js"></script>
+    <script src="node_search.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <main class="app-shell">
+      <header class="masthead">
+        <div class="identity">
+          <span id="masthead-eyebrow" class="eyebrow">Molecular design / research telemetry</span>
+          <h1 id="masthead-title">HACO <span>Molecular Observatory</span></h1>
+        </div>
+        <div class="live-controls">
+          <label class="run-picker">
+            <span>Campaign</span>
+            <select id="run-select" aria-label="Campaign"></select>
+          </label>
+          <button id="refresh-button" class="button" type="button">Refresh now</button>
+          <label class="live-switch">
+            <input id="live-toggle" type="checkbox" checked />
+            <span class="switch-track" aria-hidden="true"><span></span></span>
+            <span>Live</span>
+          </label>
+        </div>
+        <div class="connection-line" aria-live="polite">
+          <span id="connection-dot" class="connection-dot"></span>
+          <span id="connection-label">Connecting</span>
+          <span class="divider">/</span>
+          <span id="updated-at">No snapshot yet</span>
+        </div>
+      </header>
+
+      <section class="metric-strip" aria-label="Campaign overview">
+        <article class="metric">
+          <span class="metric-label">Best validation</span>
+          <strong id="metric-best">—</strong>
+          <small id="metric-best-node">No scored node</small>
+        </article>
+        <article class="metric">
+          <span class="metric-label">Research nodes</span>
+          <strong id="metric-nodes">0</strong>
+          <small id="metric-running">0 currently running</small>
+        </article>
+        <article class="metric metric-ops">
+          <span class="metric-label">Execution leases</span>
+          <strong id="metric-leases">0</strong>
+          <small id="metric-capacity">0 total capacity</small>
+        </article>
+        <article class="metric metric-alert metric-ops">
+          <span class="metric-label">Integrity findings</span>
+          <strong id="metric-issues">0</strong>
+          <small id="metric-issue-level">No inconsistencies</small>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <article class="panel tree-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="section-index">01</span>
+              <h2>Discovery tree</h2>
+            </div>
+            <div class="tree-toolbar">
+              <div class="node-search" role="search">
+                <label class="visually-hidden" for="node-search-input">Locate a research node</label>
+                <span class="node-search-mark" aria-hidden="true">⌕</span>
+                <input
+                  id="node-search-input"
+                  type="search"
+                  placeholder="SHA, branch, pair, hypothesis…"
+                  autocomplete="off"
+                  spellcheck="false"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded="false"
+                  aria-controls="node-search-results"
+                />
+                <kbd aria-hidden="true">/</kbd>
+                <button
+                  id="node-search-clear"
+                  class="node-search-clear"
+                  type="button"
+                  aria-label="Clear node search"
+                  hidden
+                >×</button>
+                <div
+                  id="node-search-results"
+                  class="node-search-results"
+                  role="listbox"
+                  aria-label="Matching research nodes"
+                  hidden
+                ></div>
+                <span id="node-search-status" class="visually-hidden" aria-live="polite"></span>
+              </div>
+              <div class="tree-actions">
+                <button id="expand-button" class="text-button" type="button">Expand all</button>
+                <button id="fit-button" class="text-button" type="button">Fit view</button>
+              </div>
+            </div>
+          </div>
+          <div class="tree-legend" aria-label="Tree legend">
+            <span><i class="legend-dot status-ok"></i>OK</span>
+            <span><i class="legend-dot status-running"></i>Running</span>
+            <span><i class="legend-dot status-buggy"></i>Buggy</span>
+            <span><i class="legend-dot status-retryable"></i>Retryable</span>
+            <span><i class="legend-line"></i>Best lineage</span>
+            <span><i class="legend-ring device-cuda"></i>CUDA</span>
+            <span><i class="legend-ring device-cpu"></i>CPU</span>
+          </div>
+          <div id="tree-stage" class="tree-stage">
+            <svg
+              id="research-tree"
+              role="img"
+              aria-label="Interactive candidate research tree"
+            >
+              <g id="tree-viewport">
+                <g id="tree-links"></g>
+                <g id="tree-nodes"></g>
+              </g>
+            </svg>
+            <div id="tree-empty" class="empty-state">
+              <span class="empty-orbit" aria-hidden="true"></span>
+              <strong>Waiting for a research DAG</strong>
+              <p>The graph will appear when candidate branches are available.</p>
+            </div>
+            <div id="tree-tooltip" class="tree-tooltip" role="tooltip"></div>
+            <div class="tree-help">Drag to pan · wheel to zoom · click to inspect · double-click to fold</div>
+          </div>
+        </article>
+
+        <aside class="panel inspector-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="section-index">02</span>
+              <h2>Candidate inspector</h2>
+            </div>
+            <span id="inspector-status" class="status-chip status-unknown">No selection</span>
+          </div>
+          <div id="inspector-empty" class="inspector-empty">
+            Select a node to examine its hypothesis, five-task result, resources,
+            logs, and consistency checks.
+          </div>
+          <div id="inspector-content" class="inspector-content" hidden>
+            <div class="candidate-title">
+              <div>
+                <span id="candidate-operator" class="candidate-operator">—</span>
+                <h3 id="candidate-id">—</h3>
+              </div>
+              <div class="candidate-score">
+                <span>val score</span>
+                <strong id="candidate-score">—</strong>
+              </div>
+            </div>
+
+            <dl class="candidate-facts">
+              <div><dt>Device</dt><dd id="candidate-device">—</dd></div>
+              <div><dt>Parent</dt><dd id="candidate-parent">—</dd></div>
+              <div><dt>Lineage</dt><dd id="candidate-branch">—</dd></div>
+              <div class="fact-ops"><dt>Artifacts</dt><dd id="candidate-artifact">—</dd></div>
+              <div><dt>Research use</dt><dd id="candidate-trust">—</dd></div>
+            </dl>
+
+            <section class="inspector-section">
+              <h4>Method</h4>
+              <p id="candidate-method">—</p>
+              <p id="candidate-pair" class="inspector-note">—</p>
+            </section>
+            <section class="inspector-section">
+              <h4>Method provenance</h4>
+              <ul id="candidate-references" class="reference-list"></ul>
+            </section>
+            <section class="inspector-section">
+              <h4>Approach</h4>
+              <div id="candidate-approach" class="finding-body"></div>
+              <details id="candidate-hypothesis-wrap" class="log-section" hidden>
+                <summary>Pre-registered mechanism</summary>
+                <pre id="candidate-hypothesis"></pre>
+              </details>
+            </section>
+            <section class="inspector-section">
+              <h4>Finding</h4>
+              <p id="candidate-finding-headline" class="finding-headline">—</p>
+              <div id="candidate-finding" class="finding-body"></div>
+              <details id="candidate-receipt-wrap" class="log-section section-ops" hidden>
+                <summary>Implementation receipt</summary>
+                <pre id="candidate-receipt"></pre>
+              </details>
+            </section>
+
+            <section class="inspector-section">
+              <h4>Molecular feature</h4>
+              <p id="candidate-molecular-headline" class="finding-headline">—</p>
+              <div id="candidate-molecular-chips" class="chem-chips"></div>
+              <p id="candidate-molecular-character"></p>
+              <div id="candidate-molecular-gaps" class="gap-list"></div>
+              <details id="candidate-molecular-tasks-wrap" class="log-section" hidden>
+                <summary>Per objective</summary>
+                <div id="candidate-molecular-tasks" class="molecular-tasks"></div>
+              </details>
+            </section>
+
+            <section class="inspector-section">
+              <h4>Five-task result</h4>
+              <p id="task-table-note" class="inspector-note">
+                Each task shows the mean the protocol ranks by, then every seed
+                that produced it. A replica the mean excluded is still listed,
+                marked uncounted.
+              </p>
+              <div class="table-wrap">
+                <table class="task-table">
+                  <thead>
+                    <tr>
+                      <th>Task</th>
+                      <th>Status</th>
+                      <th>Initial</th>
+                      <th>Final</th>
+                      <th>AUC</th>
+                      <th>Seeds</th>
+                    </tr>
+                  </thead>
+                  <tbody id="task-table-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="inspector-section section-ops">
+              <h4>Integrity checks</h4>
+              <div id="candidate-checks" class="check-list"></div>
+            </section>
+
+            <details id="candidate-log-wrap" class="log-section section-ops">
+              <summary>Run log tail</summary>
+              <pre id="candidate-log">Select a finalized node to load logs.</pre>
+            </details>
+          </div>
+        </aside>
+      </section>
+
+      <section class="lower-grid section-ops">
+        <article class="panel slots-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="section-index">03</span>
+              <h2>Build slots & resource pools</h2>
+            </div>
+          </div>
+          <div id="resource-pools" class="resource-pools"></div>
+          <div id="slot-grid" class="slot-grid"></div>
+        </article>
+
+        <article class="panel findings-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="section-index">04</span>
+              <h2>Automated checks</h2>
+            </div>
+            <span id="finding-count" class="count-badge">0</span>
+          </div>
+          <div id="findings-list" class="findings-list"></div>
+        </article>
+
+        <article class="panel events-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="section-index">05</span>
+              <h2>Recent events</h2>
+            </div>
+          </div>
+          <ol id="events-list" class="events-list"></ol>
+        </article>
+      </section>
+
+      <footer>
+        <span id="footer-role">Read-only observability plane</span>
+        <span id="repo-path">Repository not connected</span>
+      </footer>
+    </main>
+  </body>
+</html>
