@@ -401,10 +401,11 @@ async function loadSnapshot(runTag) {
     return loadJson(`/api/state${query}`);
   }
   const tag = runTag || STATIC_SITE.default_run || STATIC_SITE.run_tags?.[0] || "";
+  // A cached site-config.js can still claim inline after an export switched to
+  // files, leaving HACO_STATIC_DATA undefined; fall back instead of failing.
   if (STATIC_SITE.inline) {
     const run = window.HACO_STATIC_DATA?.runs?.[tag];
-    if (!run) throw new Error(`no exported campaign ${tag || "(none)"}`);
-    return run.state;
+    if (run) return run.state;
   }
   return loadJson(`${staticDataRoot()}/${encodeURIComponent(tag)}/state.json`);
 }
@@ -417,8 +418,7 @@ async function loadNodeDetail(runTag, nodeId) {
   }
   if (STATIC_SITE.inline) {
     const detail = window.HACO_STATIC_DATA?.runs?.[runTag]?.nodes?.[nodeId];
-    if (!detail) throw new Error("node detail was not exported");
-    return detail;
+    if (detail) return detail;
   }
   return loadJson(
     `${staticDataRoot()}/${encodeURIComponent(runTag)}/nodes/${encodeURIComponent(nodeId)}.json`,
