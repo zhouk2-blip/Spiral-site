@@ -1,1 +1,1 @@
-window.HACO_STATIC = {"run_tags":["SPIRAL","SPIRAL2"],"default_run":"SPIRAL2","data_root":"data","inline":false,"generated_at":"2026-09-14T14:08:22.243930+00:00","title":"How SPIRAL searched for molecules"};
+window.HACO_STATIC = {"run_tags":["SPIRAL","SPIRAL2"],"default_run":"SPIRAL2","data_root":"data","inline":true,"generated_at":"2026-09-21T15:16:09.641802+00:00"};
