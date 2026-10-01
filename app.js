@@ -109,6 +109,7 @@ const elements = {
   molecularGaps: document.getElementById("candidate-molecular-gaps"),
   molecularTasksWrap: document.getElementById("candidate-molecular-tasks-wrap"),
   molecularTasks: document.getElementById("candidate-molecular-tasks"),
+  seedTableBody: document.getElementById("seed-table-body"),
   taskTableBody: document.getElementById("task-table-body"),
   taskTableNote: document.getElementById("task-table-note"),
   candidateChecks: document.getElementById("candidate-checks"),
@@ -881,6 +882,7 @@ async function renderInspector() {
   // of selection clears the table and the log; otherwise they would flicker.
   const isNewSelection = state.detailNodeId !== node.id;
   if (isNewSelection) {
+    setSeedTableMessage("Loading seed results…");
     setTaskTableMessage("Loading the evaluator's per-task result…");
     elements.candidateLog.textContent = "Loading bounded log tail…";
   }
@@ -888,6 +890,7 @@ async function renderInspector() {
   const runTag = state.snapshot?.run_tag;
   if (!runTag) {
     state.detailNodeId = null;
+    setSeedTableMessage("No campaign is selected.");
     setTaskTableMessage("No campaign is selected.");
     return;
   }
@@ -895,10 +898,12 @@ async function renderInspector() {
     const detail = await loadNodeDetail(runTag, node.id);
     if (state.selectedNodeId !== node.id) return;
     state.detailNodeId = node.id;
+    renderSeedScores(detail.replicas || []);
     renderTaskRows(detail.tasks || []);
     elements.candidateLog.textContent = formatLogTail(detail.logs);
   } catch (error) {
     if (isNewSelection) {
+      setSeedTableMessage(`Could not load seed results: ${error.message}`);
       setTaskTableMessage(`Could not load the per-task result: ${error.message}`);
       elements.candidateLog.textContent = `Could not load logs: ${error.message}`;
     }
@@ -916,6 +921,38 @@ function formatLogTail(logs) {
   return paths.length
     ? `No readable log body. Recorded paths:\n${paths.join("\n")}`
     : "No finalized run.log is available.";
+}
+
+function setSeedTableMessage(message) {
+  elements.seedTableBody.replaceChildren();
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.colSpan = 3;
+  cell.textContent = message;
+  row.append(cell);
+  elements.seedTableBody.append(row);
+}
+
+function renderSeedScores(replicas) {
+  if (!replicas.length) {
+    setSeedTableMessage("No seed results recorded for this node.");
+    return;
+  }
+  elements.seedTableBody.replaceChildren();
+  [...replicas].sort((a, b) => a.seed - b.seed).forEach((replica) => {
+    const row = document.createElement("tr");
+    const label = document.createElement("td");
+    label.textContent = replica.seed_kind === "confirmation"
+      ? `seed ${replica.seed} · confirmation`
+      : `seed ${replica.seed}`;
+    const status = document.createElement("td");
+    status.textContent = replica.status;
+    status.className = `task-${replica.status}`;
+    const score = document.createElement("td");
+    score.textContent = formatScore(replica.macro_score);
+    row.append(label, status, score);
+    elements.seedTableBody.append(row);
+  });
 }
 
 function setTaskTableMessage(message) {
