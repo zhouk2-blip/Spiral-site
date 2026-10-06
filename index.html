@@ -12,10 +12,10 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23080b0b' stroke='%23b8ef5b' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%2369d7d0'/%3E%3C/svg%3E"
     />
-    <link rel="stylesheet" href="styles.css?v=d656d9b78124" />
-    <script src="site-config.js?v=d656d9b78124"></script>
-    <script src="node_search.js?v=d656d9b78124" defer></script>
-    <script src="app.js?v=d656d9b78124" defer></script>
+    <link rel="stylesheet" href="styles.css?v=55185c7656d3" />
+    <script src="site-config.js?v=55185c7656d3"></script>
+    <script src="node_search.js?v=55185c7656d3" defer></script>
+    <script src="app.js?v=55185c7656d3" defer></script>
   </head>
   <body>
     <div class="noise" aria-hidden="true"></div>
@@ -108,6 +108,7 @@
                 <span id="node-search-status" class="visually-hidden" aria-live="polite"></span>
               </div>
               <div class="tree-actions">
+                <button id="order-button" class="text-button" type="button">Order: round</button>
                 <button id="expand-button" class="text-button" type="button">Expand all</button>
                 <button id="fit-button" class="text-button" type="button">Fit view</button>
               </div>
@@ -119,6 +120,7 @@
             <span><i class="legend-dot status-buggy"></i>Buggy</span>
             <span><i class="legend-dot status-retryable"></i>Retryable</span>
             <span><i class="legend-line"></i>Best lineage</span>
+            <span>R· round produced · W· exploration window</span>
             <span><i class="legend-ring device-cuda"></i>CUDA</span>
             <span><i class="legend-ring device-cpu"></i>CPU</span>
           </div>
@@ -170,6 +172,7 @@
             <dl class="candidate-facts">
               <div><dt>Device</dt><dd id="candidate-device">—</dd></div>
               <div><dt>Parent</dt><dd id="candidate-parent">—</dd></div>
+              <div><dt>Round</dt><dd id="candidate-round">—</dd></div>
               <div><dt>Lineage</dt><dd id="candidate-branch">—</dd></div>
               <div class="fact-ops"><dt>Artifacts</dt><dd id="candidate-artifact">—</dd></div>
               <div><dt>Research use</dt><dd id="candidate-trust">—</dd></div>
@@ -200,6 +203,16 @@
               <h4>Method provenance</h4>
               <ul id="candidate-references" class="reference-list"></ul>
             </section>
+            <section id="candidate-literature-wrap" class="inspector-section" hidden>
+              <h4>Literature review</h4>
+              <p id="candidate-literature-status" class="inspector-note"></p>
+              <div id="candidate-literature" class="finding-body"></div>
+              <ul id="candidate-literature-sources" class="reference-list"></ul>
+              <details id="candidate-literature-queries-wrap" class="log-section" hidden>
+                <summary>Search queries</summary>
+                <pre id="candidate-literature-queries"></pre>
+              </details>
+            </section>
             <section class="inspector-section">
               <h4>Approach</h4>
               <div id="candidate-approach" class="finding-body"></div>
@@ -207,6 +220,10 @@
                 <summary>Pre-registered mechanism</summary>
                 <pre id="candidate-hypothesis"></pre>
               </details>
+            </section>
+            <section id="candidate-method-change-wrap" class="inspector-section" hidden>
+              <h4 id="candidate-method-change-title">Method change</h4>
+              <div id="candidate-method-change" class="finding-body"></div>
             </section>
             <section class="inspector-section">
               <h4>Finding</h4>

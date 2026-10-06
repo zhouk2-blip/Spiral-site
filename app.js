@@ -36,6 +36,17 @@ const { rankNodes } = window.HacoNodeSearch;
 // page then reads pre-rendered JSON instead of the live server; with `inline`
 // the same data arrives as window.HACO_STATIC_DATA so file:// works too.
 const STATIC_SITE = window.HACO_STATIC || null;
+const TREE_ORDER_KEY = "haco.treeOrder";
+const TREE_ORDERS = ["round", "score"];
+
+function storedTreeOrder() {
+  try {
+    const value = window.localStorage.getItem(TREE_ORDER_KEY);
+    return TREE_ORDERS.includes(value) ? value : "round";
+  } catch {
+    return "round";
+  }
+}
 
 const state = {
   snapshot: null,
@@ -50,6 +61,7 @@ const state = {
   searchResults: [],
   activeSearchIndex: 0,
   searchOpen: false,
+  treeOrder: storedTreeOrder(),
 };
 
 const elements = {
@@ -77,6 +89,7 @@ const elements = {
   tooltip: document.getElementById("tree-tooltip"),
   fitButton: document.getElementById("fit-button"),
   expandButton: document.getElementById("expand-button"),
+  orderButton: document.getElementById("order-button"),
   nodeSearch: document.querySelector(".node-search"),
   nodeSearchInput: document.getElementById("node-search-input"),
   nodeSearchClear: document.getElementById("node-search-clear"),
@@ -90,13 +103,23 @@ const elements = {
   candidateScore: document.getElementById("candidate-score"),
   candidateDevice: document.getElementById("candidate-device"),
   candidateParent: document.getElementById("candidate-parent"),
+  candidateRound: document.getElementById("candidate-round"),
   candidateBranch: document.getElementById("candidate-branch"),
   candidateArtifact: document.getElementById("candidate-artifact"),
   candidateTrust: document.getElementById("candidate-trust"),
   candidateMethod: document.getElementById("candidate-method"),
   candidatePair: document.getElementById("candidate-pair"),
   candidateReferences: document.getElementById("candidate-references"),
+  candidateLiteratureWrap: document.getElementById("candidate-literature-wrap"),
+  candidateLiteratureStatus: document.getElementById("candidate-literature-status"),
+  candidateLiterature: document.getElementById("candidate-literature"),
+  candidateLiteratureSources: document.getElementById("candidate-literature-sources"),
+  candidateLiteratureQueriesWrap: document.getElementById("candidate-literature-queries-wrap"),
+  candidateLiteratureQueries: document.getElementById("candidate-literature-queries"),
   candidateApproach: document.getElementById("candidate-approach"),
+  candidateMethodChangeWrap: document.getElementById("candidate-method-change-wrap"),
+  candidateMethodChangeTitle: document.getElementById("candidate-method-change-title"),
+  candidateMethodChange: document.getElementById("candidate-method-change"),
   candidateHypothesis: document.getElementById("candidate-hypothesis"),
   candidateHypothesisWrap: document.getElementById("candidate-hypothesis-wrap"),
   candidateFinding: document.getElementById("candidate-finding"),
@@ -160,6 +183,19 @@ function compactId(value) {
   return String(value).slice(0, 10);
 }
 
+function roundTag(node) {
+  return Number.isInteger(node.round) ? `R${node.round}` : "R?";
+}
+
+// Where a node came from: its round, the ticket that produced it, and the
+// exploration window that ticket was registered in.
+function provenanceText(node) {
+  const parts = [Number.isInteger(node.round) ? `round ${node.round}` : "round not recorded"];
+  if (node.ticket_id) parts.push(node.ticket_id);
+  parts.push(node.window_id ? `window ${node.window_id}` : "no exploration window");
+  return parts.join(" · ");
+}
+
 function labelledBlocks(target, pairs) {
   pairs.forEach(([label, text]) => {
     if (!text) return;
@@ -169,6 +205,92 @@ function labelledBlocks(target, pairs) {
     block.append(lead, document.createTextNode(String(text)));
     target.append(block);
   });
+}
+
+function renderLiteratureReview(node) {
+  const review = node.literature_review;
+  elements.candidateLiteratureWrap.hidden = !review;
+  elements.candidateLiterature.replaceChildren();
+  elements.candidateLiteratureSources.replaceChildren();
+  elements.candidateLiteratureStatus.textContent = "";
+  elements.candidateLiteratureQueries.textContent = "";
+  elements.candidateLiteratureQueriesWrap.hidden = true;
+  if (!review) return;
+
+  const reused = review.status === "reused";
+  elements.candidateLiteratureStatus.textContent = reused
+    ? "Reused literature review"
+    : "Literature search recorded";
+  labelledBlocks(elements.candidateLiterature, [
+    ["Observed bottleneck", node.observed_bottleneck],
+    ["Conclusion", review.conclusion],
+  ]);
+  if (reused && Array.isArray(review.source_node_ids) && review.source_node_ids.length) {
+    const sources = document.createElement("p");
+    sources.className = "inspector-note";
+    sources.append(document.createTextNode("Reviews from "));
+    review.source_node_ids.forEach((nodeId, index) => {
+      if (index) sources.append(document.createTextNode(" · "));
+      if (state.snapshot?.nodes.some((candidate) => candidate.id === nodeId)) {
+        const button = document.createElement("button");
+        button.className = "text-button";
+        button.type = "button";
+        button.textContent = compactId(nodeId);
+        button.title = nodeId;
+        button.addEventListener("click", () => selectNode(nodeId));
+        sources.append(button);
+      } else {
+        sources.append(document.createTextNode(String(nodeId)));
+      }
+    });
+    elements.candidateLiterature.append(sources);
+  }
+
+  const references = Array.isArray(review.sources) ? review.sources : [];
+  references.forEach((reference) => {
+    const item = document.createElement("li");
+    const link = document.createElement("a");
+    const url = String(reference.url || "");
+    link.textContent = reference.title || url || "Untitled source";
+    if (/^https?:\/\//i.test(url)) {
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+    }
+    item.append(link);
+    const body = document.createElement("div");
+    body.className = "finding-body";
+    labelledBlocks(body, [
+      ["Finding", reference.finding],
+      ["Applicability", reference.applicability],
+    ]);
+    item.append(body);
+    elements.candidateLiteratureSources.append(item);
+  });
+  if (!references.length && !reused) {
+    const note = document.createElement("li");
+    note.className = "reference-empty";
+    note.textContent = "No useful sources recorded for this search.";
+    elements.candidateLiteratureSources.append(note);
+  }
+
+  const queries = Array.isArray(review.queries) ? review.queries : [];
+  elements.candidateLiteratureQueriesWrap.hidden = !queries.length;
+  elements.candidateLiteratureQueries.textContent = queries.join("\n");
+}
+
+function renderMethodChange(node) {
+  const change = node.method_change;
+  elements.candidateMethodChangeWrap.hidden = !change;
+  elements.candidateMethodChange.replaceChildren();
+  if (!change) return;
+  elements.candidateMethodChangeTitle.textContent =
+    change.scope === "method_replacement" ? "Method replacement" : "Method change";
+  labelledBlocks(elements.candidateMethodChange, [
+    ["Previous method", change.previous_method],
+    ["Proposed method", change.proposed_method],
+    ["Reason", change.rationale],
+  ]);
 }
 
 //: The plan, before the run: the method this node builds on, and what it does
@@ -411,19 +533,29 @@ async function loadSnapshot(runTag) {
   return loadJson(`${staticDataRoot()}/${encodeURIComponent(tag)}/state.json`);
 }
 
+// An export never changes under the page, so each node file is fetched once.
+const staticDetails = new Map();
+
+function cachedNodeDetail(runTag, nodeId) {
+  return staticDetails.get(`${runTag}/${nodeId}`) || null;
+}
+
 async function loadNodeDetail(runTag, nodeId) {
   if (!STATIC_SITE) {
     return loadJson(
       `/api/node?run_tag=${encodeURIComponent(runTag)}&node_id=${encodeURIComponent(nodeId)}`,
     );
   }
-  if (STATIC_SITE.inline) {
-    const detail = window.HACO_STATIC_DATA?.runs?.[runTag]?.nodes?.[nodeId];
-    if (detail) return detail;
+  const cached = cachedNodeDetail(runTag, nodeId);
+  if (cached) return cached;
+  let detail = STATIC_SITE.inline ? window.HACO_STATIC_DATA?.runs?.[runTag]?.nodes?.[nodeId] : null;
+  if (!detail) {
+    detail = await loadJson(
+      `${staticDataRoot()}/${encodeURIComponent(runTag)}/nodes/${encodeURIComponent(nodeId)}.json`,
+    );
   }
-  return loadJson(
-    `${staticDataRoot()}/${encodeURIComponent(runTag)}/nodes/${encodeURIComponent(nodeId)}.json`,
-  );
+  staticDetails.set(`${runTag}/${nodeId}`, detail);
+  return detail;
 }
 
 async function fetchSnapshot({ preserveSelection = true } = {}) {
@@ -630,11 +762,20 @@ function buildVisibleTree(nodes) {
     if (copy !== parent) parent.children.push(copy);
   });
 
+  function byScore(left, right) {
+    return (finiteNumber(right.score) ?? -1) - (finiteNumber(left.score) ?? -1);
+  }
+  function byRound(left, right) {
+    return (
+      (left.round ?? Infinity) - (right.round ?? Infinity) ||
+      String(left.ticket_id || "").localeCompare(String(right.ticket_id || ""))
+    );
+  }
+  const primary = state.treeOrder === "score" ? byScore : byRound;
   function sortChildren(node) {
-    node.children.sort((left, right) => {
-      const scoreDelta = (finiteNumber(right.score) ?? -1) - (finiteNumber(left.score) ?? -1);
-      return scoreDelta || left.short_id.localeCompare(right.short_id);
-    });
+    node.children.sort(
+      (left, right) => primary(left, right) || left.short_id.localeCompare(right.short_id),
+    );
     node.children.forEach(sortChildren);
   }
   sortChildren(root);
@@ -712,16 +853,21 @@ function renderTree(nodes) {
       y: -2,
     });
     label.textContent =
-      node.id === "root" ? "campaign root" : `${node.operator} · ${compactId(node.id)}`;
+      node.id === "root"
+        ? "campaign root"
+        : `${roundTag(node)} · ${node.operator} · ${compactId(node.id)}`;
     const scoreLabel = createSvg("text", {
       class: "node-score",
       x: radius + 9,
       y: 11,
     });
+    const tags = [];
+    if (node.window_id) tags.push(`W${node.window_id}`);
+    if (node.is_anchor) tags.push("ANCHOR");
     scoreLabel.textContent =
       node.id === "root"
         ? `${nodes.length} candidates`
-        : `${node.status} / ${formatScore(node.score)}`;
+        : [`${node.status} / ${formatScore(node.score)}`, ...tags].join(" · ");
     group.append(label, scoreLabel);
 
     if (node.children.length) {
@@ -784,6 +930,7 @@ function horizontalCurve(x1, y1, x2, y2) {
 function showTooltip(event, node) {
   elements.tooltip.innerHTML = `
     <strong>${escapeHtml(node.operator)} / ${escapeHtml(compactId(node.id))}</strong>
+    <span>${escapeHtml(provenanceText(node))}</span>
     <span>Status: ${escapeHtml(node.status)} · Score: ${escapeHtml(
       formatScore(node.score),
     )}</span>
@@ -840,6 +987,15 @@ function selectNode(nodeId) {
   renderInspector();
 }
 
+function renderNodeSections(node) {
+  renderMethodReferences(node.method_references);
+  renderLiteratureReview(node);
+  renderApproach(node);
+  renderMethodChange(node);
+  renderFinding(node);
+  renderMolecular(node.molecular);
+}
+
 async function renderInspector() {
   const node = state.snapshot?.nodes.find(
     (candidate) => candidate.id === state.selectedNodeId,
@@ -864,6 +1020,11 @@ async function renderInspector() {
   elements.candidateScore.textContent = formatScore(node.score);
   elements.candidateDevice.textContent = node.device || "not recorded";
   elements.candidateParent.textContent = compactId(node.parent);
+  const laterTickets = (node.tickets || []).filter((ticket) => ticket !== node.ticket_id);
+  elements.candidateRound.textContent = laterTickets.length
+    ? `${provenanceText(node)} (re-evaluated by ${laterTickets.join(", ")})`
+    : provenanceText(node);
+  elements.candidateRound.title = elements.candidateRound.textContent;
   elements.candidateBranch.textContent = node.branches?.join(" · ") || "—";
   elements.candidateArtifact.textContent = node.artifact_dir || "not finalized";
   elements.candidateTrust.textContent = node.research_trust || "not recorded";
@@ -872,10 +1033,15 @@ async function renderInspector() {
   elements.candidatePair.textContent = node.pair
     ? `mechanism signature ${node.pair}`
     : "No mechanism signature recorded.";
-  renderMethodReferences(node.method_references);
-  renderApproach(node);
-  renderFinding(node);
-  renderMolecular(node.molecular);
+  // A static export keeps these sections in the node's own file, so they are
+  // drawn again, complete, once that file has loaded.
+  const runTag = state.snapshot?.run_tag;
+  const cached = runTag ? cachedNodeDetail(runTag, node.id) : null;
+  renderNodeSections({ ...node, ...(cached || {}) });
+  if (STATIC_SITE && !cached) {
+    elements.candidateFindingHeadline.textContent = "Loading…";
+    elements.molecularHeadline.textContent = "Loading…";
+  }
   renderCandidateChecks(node.checks || []);
 
   // A live refresh re-reads the detail every few seconds. Only a genuine change
@@ -887,7 +1053,6 @@ async function renderInspector() {
     elements.candidateLog.textContent = "Loading bounded log tail…";
   }
 
-  const runTag = state.snapshot?.run_tag;
   if (!runTag) {
     state.detailNodeId = null;
     setSeedTableMessage("No campaign is selected.");
@@ -898,6 +1063,7 @@ async function renderInspector() {
     const detail = await loadNodeDetail(runTag, node.id);
     if (state.selectedNodeId !== node.id) return;
     state.detailNodeId = node.id;
+    renderNodeSections({ ...node, ...detail, checks: node.checks });
     renderSeedScores(detail.replicas || []);
     renderTaskRows(detail.tasks || []);
     elements.candidateLog.textContent = formatLogTail(detail.logs);
@@ -906,6 +1072,10 @@ async function renderInspector() {
       setSeedTableMessage(`Could not load seed results: ${error.message}`);
       setTaskTableMessage(`Could not load the per-task result: ${error.message}`);
       elements.candidateLog.textContent = `Could not load logs: ${error.message}`;
+      if (STATIC_SITE) {
+        elements.candidateFindingHeadline.textContent = `Could not load this node: ${error.message}`;
+        elements.molecularHeadline.textContent = "";
+      }
     }
   }
 }
@@ -1285,6 +1455,24 @@ document.addEventListener("keydown", (event) => {
   }
 });
 elements.fitButton.addEventListener("click", fitTree);
+function renderOrderButton() {
+  elements.orderButton.textContent = `Order: ${state.treeOrder}`;
+  elements.orderButton.setAttribute(
+    "aria-label",
+    `Children ordered by ${state.treeOrder}; switch ordering`,
+  );
+}
+elements.orderButton.addEventListener("click", () => {
+  state.treeOrder = state.treeOrder === "round" ? "score" : "round";
+  try {
+    window.localStorage.setItem(TREE_ORDER_KEY, state.treeOrder);
+  } catch {
+    // Ordering then lasts only for this page view.
+  }
+  renderOrderButton();
+  renderTree(state.snapshot?.nodes || []);
+});
+renderOrderButton();
 elements.expandButton.addEventListener("click", () => {
   state.collapsed.clear();
   renderTree(state.snapshot?.nodes || []);

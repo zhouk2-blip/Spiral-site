@@ -8,6 +8,7 @@
   const SEARCH_FIELDS = [
     ["id", 100],
     ["short_id", 95],
+    ["ticket", 80],
     ["branch", 75],
     ["pair", 65],
     ["hypothesis", 55],
@@ -21,6 +22,7 @@
 
   function fieldValues(node, field) {
     if (field === "branch") return Array.isArray(node.branches) ? node.branches : [];
+    if (field === "ticket") return Array.isArray(node.tickets) ? node.tickets : [node.ticket_id];
     return [node[field]];
   }
 
