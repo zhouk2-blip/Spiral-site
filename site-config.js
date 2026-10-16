@@ -1,1 +1,1 @@
-window.HACO_STATIC = {"run_tags":["SPIRAL","SPIRAL2"],"default_run":"SPIRAL2","data_root":"data","inline":false,"generated_at":"2026-10-15T01:52:52.694289+00:00","title":"SPIRAL campaign"};
+window.HACO_STATIC = {"run_tags":["SPIRAL","SPIRAL2"],"default_run":"SPIRAL2","data_root":"data","inline":false,"generated_at":"2026-10-16T05:53:44.589241+00:00","title":"SPIRAL campaign"};
